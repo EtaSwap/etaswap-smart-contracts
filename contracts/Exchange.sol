@@ -32,7 +32,14 @@ contract Exchange is Ownable, Pausable, ReentrancyGuard, IExchange {
         address indexed addr
     );
     event AdapterRemoved(string indexed aggregatorId);
-    event Swap(string indexed aggregatorId, address indexed sender);
+    event Swap(
+        string indexed aggregatorId,
+        address indexed sender,
+        IERC20 tokenFrom,
+        IERC20 tokenTo,
+        uint256 amountFrom,
+        uint256 amountTo
+    );
 
     /**
      * @dev Sets the adapter for an aggregator. It can't be changed later.
@@ -84,6 +91,25 @@ contract Exchange is Ownable, Pausable, ReentrancyGuard, IExchange {
         _swap(aggregatorId, tokenFrom, tokenTo, amountFrom, amountTo, deadline, feeOnTransfer);
     }
 
+    /**
+     * @dev Performs a transactional split swap
+     * @param aggregatorsId Identifiers of the aggregators to be used for the swap
+     */
+    function splitSwap(
+        string[] calldata aggregatorsId,
+        IERC20 tokenFrom,
+        IERC20 tokenTo,
+        uint256[] calldata amountsFrom,
+        uint256[] calldata amountsTo,
+        uint256 deadline,
+        bool feeOnTransfer
+    ) external payable whenNotPaused nonReentrant {
+        for(uint8 i = 0; i < aggregatorsId.length; i++) {
+            require(adapters[aggregatorsId[i]] != address(0), "EtaSwap: ADAPTER_DOES_NOT_EXIST");
+            _swap(aggregatorsId[i], tokenFrom, tokenTo, amountsFrom[i], amountsTo[i], deadline, feeOnTransfer);
+        }
+    }
+
     function pauseSwaps() external onlyOwner {
         _pause();
     }
@@ -117,6 +143,6 @@ contract Exchange is Ownable, Pausable, ReentrancyGuard, IExchange {
             feeOnTransfer
         );
 
-        emit Swap(aggregatorId, msg.sender);
+        emit Swap(aggregatorId, msg.sender, tokenFrom, tokenTo, amountFrom, amountTo);
     }
 }

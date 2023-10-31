@@ -78,7 +78,6 @@ module.exports = async ({ client, clientAccount, feeAccount, adapters }) => {
     const chunkSize = 20;
     for (let i = 0; i < allTokensToAssociate.length; i += chunkSize) {
         const chunk = allTokensToAssociate.slice(i, i + chunkSize);
-        console.log(chunk);
         const assocExchangeTx = await new TokenAssociateTransaction()
             .setTokenIds(chunk)
             .setAccountId(AccountId.fromSolidityAddress(exchangeAddress))
@@ -92,7 +91,6 @@ module.exports = async ({ client, clientAccount, feeAccount, adapters }) => {
     //Associate fee wallet to all tokens
     for (let i = 0; i < allTokensToAssociate.length; i += chunkSize) {
         const chunk = allTokensToAssociate.slice(i, i + chunkSize);
-        console.log(chunk);
         const assocFeeTx = await new TokenAssociateTransaction()
             .setTokenIds(chunk)
             .setAccountId(feeAccount.id)

@@ -497,4 +497,125 @@ describe("Exchange", function () {
             expect(tokenABalanceAfter).to.be.equal(tokenABalanceBefore.sub(amountFrom));
         }
     });
+
+    it("should be able to exchange split order exact tokens to tokens", async function () {
+        for (const name of Object.keys(ORACLES)) {
+            const { tokenA, tokenB } = ORACLES[name].validPair;
+            const tokenABalanceBefore = await hre.run('get-balance', {
+                userAddress: AccountId.fromString(clientAccount.id).toSolidityAddress(),
+                tokenAddress: tokenA
+            });
+            const tokenBBalanceBefore = await hre.run('get-balance', {
+                userAddress: AccountId.fromString(clientAccount.id).toSolidityAddress(),
+                tokenAddress: tokenB
+            });
+            const tokenABalanceFeeBefore = await hre.run('get-balance', {
+                userAddress: feeAccount.id.toSolidityAddress(),
+                tokenAddress: tokenA
+            });
+            const slippageTolerance = 0.025;
+            const { rate } = await hre.run('get-rate-oracle', {
+                name,
+                address: ORACLES[name].address,
+                tokenA,
+                tokenB,
+            });
+
+            const amountFrom = hre.ethers.BigNumber.from(100000000);
+            const amountTo = amountFrom.mul(rate).div(hre.ethers.BigNumber.from(10).pow(18)).mul(1000 - slippageTolerance * 1000 - feeRate * 1000).div(1000);
+
+            await hre.run("call-exchange", {
+                client,
+                clientAccount,
+                exchangeAddress,
+                tokenFrom: tokenA,
+                tokenTo: tokenB,
+                amountFrom: [amountFrom.div(4), amountFrom.div(4).mul(3)],
+                amountTo: [amountTo.div(4), amountTo.div(4).mul(3)],
+                aggregatorId: [ORACLES[name].aggregatorId, ORACLES[name].aggregatorId],
+                feeOnTransfer: false,
+                gasLimit: GAS_LIMITS.exactTokenToToken * 2,
+            });
+
+            const tokenABalanceAfter = await hre.run('get-balance', {
+                userAddress: AccountId.fromString(clientAccount.id).toSolidityAddress(),
+                tokenAddress: tokenA
+            });
+            const tokenBBalanceAfter = await hre.run('get-balance', {
+                userAddress: AccountId.fromString(clientAccount.id).toSolidityAddress(),
+                tokenAddress: tokenB
+            });
+            const tokenABalanceFeeAfter = await hre.run('get-balance', {
+                userAddress: feeAccount.id.toSolidityAddress(),
+                tokenAddress: tokenA
+            });
+
+            expect(tokenABalanceAfter).to.be.equal(tokenABalanceBefore.sub(amountFrom));
+            expect(tokenBBalanceAfter).to.be.greaterThan(tokenBBalanceBefore.add(amountTo));
+            expect(tokenBBalanceAfter).to.be.lessThanOrEqual(tokenBBalanceBefore.add(amountFrom.mul(rate).div(hre.ethers.BigNumber.from(10).pow(18)).mul((1 - feeRate) * 1000).div(1000)));
+            expect(tokenABalanceFeeAfter.sub(tokenABalanceFeeBefore.add(amountFrom.mul(feeRate * 1000).div(1000))).abs()).to.be.lessThanOrEqual(100);
+        }
+    });
+
+
+    it("should be able to exchange split order exact tokens to HBAR", async function () {
+        for (const name of Object.keys(ORACLES)) {
+            const { tokenA, tokenB } = ORACLES[name].validPairHbar;
+            const tokenABalanceBefore = await hre.run('get-balance', {
+                userAddress: AccountId.fromString(clientAccount.id).toSolidityAddress(),
+                tokenAddress: tokenA
+            });
+            const tokenBBalanceBefore = await hre.run('get-balance', {
+                userAddress: AccountId.fromString(clientAccount.id).toSolidityAddress(),
+                tokenAddress: tokenB
+            });
+            const tokenBBalanceFeeBefore = await hre.run('get-balance', {
+                userAddress: feeAccount.id.toSolidityAddress(),
+                tokenAddress: tokenB
+            });
+            const slippageTolerance = 0.025;
+            const { rate } = await hre.run('get-rate-oracle', {
+                name,
+                address: ORACLES[name].address,
+                tokenA: tokenB === ethers.constants.AddressZero ? ORACLES[name].whbarToken : tokenB,
+                tokenB: tokenA === ethers.constants.AddressZero ? ORACLES[name].whbarToken : tokenA,
+            });
+
+            const amountFrom = hre.ethers.BigNumber.from(100000);
+            const amountTo = amountFrom.mul(rate).div(hre.ethers.BigNumber.from(10).pow(18)).mul(1000 - slippageTolerance * 1000 - feeRate * 1000).div(1000);
+
+            await hre.run("call-exchange", {
+                client,
+                clientAccount,
+                exchangeAddress,
+                tokenFrom: tokenB,
+                tokenTo: tokenA,
+                amountFrom: [amountFrom.div(4), amountFrom.div(2), amountFrom.div(4)],
+                amountTo: [amountTo.div(4), amountTo.div(2), amountTo.div(4)],
+                aggregatorId: [ORACLES[name].aggregatorId, ORACLES[name].aggregatorId, ORACLES[name].aggregatorId],
+                feeOnTransfer: false,
+                gasLimit: GAS_LIMITS.exactTokenToHBAR * 3,
+            });
+
+            const tokenABalanceAfter = await hre.run('get-balance', {
+                userAddress: AccountId.fromString(clientAccount.id).toSolidityAddress(),
+                tokenAddress: tokenA
+            });
+            const tokenBBalanceAfter = await hre.run('get-balance', {
+                userAddress: AccountId.fromString(clientAccount.id).toSolidityAddress(),
+                tokenAddress: tokenB
+            });
+            const tokenBBalanceFeeAfter = await hre.run('get-balance', {
+                userAddress: feeAccount.id.toSolidityAddress(),
+                tokenAddress: tokenB
+            });
+
+            expect(tokenBBalanceAfter).to.be.equal(tokenBBalanceBefore.sub(amountFrom));
+            // TODO: -gas
+            // expect(tokenABalanceAfter).to.be.greaterThan(tokenABalanceBefore.add(amountTo));
+            expect(tokenABalanceAfter).to.be.lessThanOrEqual(tokenABalanceBefore.add(amountFrom.mul(rate).div(hre.ethers.BigNumber.from(10).pow(18)).mul((1 - feeRate) * 1000).div(1000)));
+            expect(tokenBBalanceFeeAfter.sub(tokenBBalanceFeeBefore.add(amountFrom.mul(feeRate * 1000).div(1000))).abs()).to.be.lessThanOrEqual(100);
+        }
+    });
+
 });
